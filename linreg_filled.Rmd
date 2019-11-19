@@ -25,7 +25,8 @@ cars <- read_csv("data/autos_sample.csv", col_types = cols(
   monthOfRegistration = col_integer(),
   dateCreated = col_datetime(format = ""),
   nrOfPictures = col_integer(),
-  lastSeen = col_datetime(format = "")
+  lastSeen = col_datetime(format = ""),
+  postalCode = col_integer()
 ))
 ```
 
@@ -52,6 +53,13 @@ test <- anti_join(cars, train, by = 'id')
 
 From here on, we do EDA on the training data so that we don't leak back the test data to our modelling.
 
+```{r}
+pairs(train %>%  select(yearOfRegistration, kilometer, postalCode, powerPS))
+```
+
+```{r}
+pairs(train %>%  mutate_if(is.character, as.factor) %>%  select(abtest, vehicleType, gearbox, model, brand, fuelType, notRepairedDamage), lower.panel = NULL)
+```
 
 Fit a linear regression on the training set (with more than one independent variable).
 ```{r}
@@ -106,6 +114,7 @@ Predict prices for the test data.
 
 Calculate the MSE. 
 ```{r}
+
 
 ```
 
