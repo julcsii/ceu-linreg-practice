@@ -1,0 +1,124 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+Load the necessary packages. 
+
+```{r}
+library(tidyverse)  # data manipulation and visualization
+library(modelr)     # provides easy pipeline modeling functions
+library(broom)      # helps to tidy up model outputs
+library(forcats)    # helps with categorical variables
+set.seed(123) # set seed
+```
+
+Load the `autos.csv` dataset downloaded from [Kaggle](https://www.kaggle.com/orgesleka/used-cars-database).
+```{r}
+cars <- read_csv("data/autos_sample.csv", col_types = cols(
+  dateCrawled = col_datetime(format = ""),
+  price = col_integer(),
+  yearOfRegistration = col_integer(),
+  powerPS = col_integer(),
+  kilometer = col_integer(),
+  monthOfRegistration = col_integer(),
+  dateCreated = col_datetime(format = ""),
+  nrOfPictures = col_integer(),
+  lastSeen = col_datetime(format = ""),
+  postalCode = col_integer()
+))
+```
+
+
+Take a high level look at the dataset..
+```{r}
+summary(cars)
+```
+
+Clean up a little the data..
+```{r}
+cars <- cars %>% 
+  select(-dateCrawled, -dateCreated, -nrOfPictures, -lastSeen, -name, -seller, -offerType) %>% 
+  mutate(yearOfRegistration = ifelse(yearOfRegistration < 1945 | yearOfRegistration > 2019, NA, yearOfRegistration))
+```
+
+
+Split to 0.8 train and 0.2 test.
+```{r}
+cars <- cars %>% mutate(id = row_number())
+train <- cars %>% sample_frac(.80)
+test <- anti_join(cars, train, by = 'id')
+```
+
+From here on, we do EDA on the training data so that we don't leak back the test data to our modelling.
+
+```{r}
+# only numeric
+pairs(train %>% select(yearOfRegistration, powerPS, kilometer, postalCode))
+```
+
+```{r}
+pairs(train %>% mutate_if(is.character, as.factor) %>%  select(abtest, vehicleType, yearOfRegistration, gearbox,model,fuelType,brand) %>%  na.exclude(),lower.panel = NULL)
+```
+
+Fit a linear regression on the training set (with more than one independent variable).
+```{r}
+model_1 <- lm(price ~ vehicleType, data = train)
+```
+
+Evaluate the model. How do the residuals looks? Are all variables significant? Is the model "good"? Can we do something to make it better? (look at Anova)
+```{r}
+summary(model_1)
+```
+```{r}
+plot(model_1)
+```
+
+```{r}
+hist(model_1$residuals)
+```
+
+Improve your model.
+```{r}
+model_2 <- lm(price ~ abtest + vehicleType + yearOfRegistration+ gearbox+powerPS+model+kilometer+fuelType+brand+notRepairedDamage+postalCode, data = train)
+```
+
+```{r}
+summary(model_2)
+```
+
+```{r}
+cars <- cars %>%
+  mutate(is_porsche = ifelse(brand=="porsche", 1, 0))
+
+train <- cars %>% sample_frac(.80)
+test <- anti_join(cars, train, by = 'id')
+
+model_3 <- lm(price ~ yearOfRegistration + is_porsche  + powerPS + kilometer + postalCode +fuelType + notRepairedDamage + gearbox, data = train)
+```
+
+```{r}
+summary(model_3)
+```
+
+```{r}
+plot(model_3)
+```
+
+Predict prices for the test data.
+```{r}
+(results <- test %>% 
+  add_predictions(model_3))
+
+```
+
+Calculate the MSE. 
+```{r}
+
+```
+
+What do the coefficients mean in your model? Can you explain the model?
+```{r}
+```
