@@ -36,16 +36,24 @@ Take a high level look at the dataset..
 summary(cars)
 ```
 
+Exclude extreme values from price.
+```{r}
+cars %>%  ggplot(aes(price)) + geom_histogram(binwidth=2500)
+```
+
 Clean up a little the data..
 ```{r}
 cars <- cars %>% 
-  select(-dateCrawled, -dateCreated, -nrOfPictures, -lastSeen, -name, -seller, -offerType) %>% 
-  mutate(yearOfRegistration = ifelse(yearOfRegistration < 1945 | yearOfRegistration > 2019, NA, yearOfRegistration))
+  select(-dateCrawled, -dateCreated, -nrOfPictures, -lastSeen, -name, -seller, -offerType, -monthOfRegistration) %>% 
+  mutate(yearOfRegistration = ifelse(yearOfRegistration < 1945 | yearOfRegistration > 2019, NA, yearOfRegistration)) %>% 
+  mutate(powerPS = ifelse(powerPS==0, NA, powerPS)) %>% 
+  filter((0 < price) & (price <= 160000))
 ```
 
 
 Split to 0.8 train and 0.2 test.
 ```{r}
+set.seed(123) # set seed
 cars <- cars %>% mutate(id = row_number())
 train <- cars %>% sample_frac(.80)
 test <- anti_join(cars, train, by = 'id')
@@ -54,6 +62,7 @@ test <- anti_join(cars, train, by = 'id')
 From here on, we do EDA on the training data so that we don't leak back the test data to our modelling.
 
 ```{r}
+# relationships
 pairs(train %>%  select(yearOfRegistration, kilometer, postalCode, powerPS))
 ```
 
@@ -61,9 +70,40 @@ pairs(train %>%  select(yearOfRegistration, kilometer, postalCode, powerPS))
 pairs(train %>%  mutate_if(is.character, as.factor) %>%  select(abtest, vehicleType, gearbox, model, brand, fuelType, notRepairedDamage), lower.panel = NULL)
 ```
 
+```{r}
+cor(train$price, train$yearOfRegistration)
+
+cor(train$price, train$kilometer)
+
+cor(train$price, factor(train$vehicleType))
+
+train %>%
+  group_by(vehicleType) %>% 
+  summarize(cor = cor(price, kilometer), count=n()) %>% 
+  arrange(cor)
+
+train %>%
+  group_by(brand) %>% 
+  summarize(cor = cor(price, kilometer), count=n()) %>% 
+  arrange(cor)
+```
+```{r}
+honda <- train %>% 
+  filter(brand=="honda")
+honda_model <- lm(price ~ kilometer, data=honda)
+summary(honda_model)
+
+plot(honda_model)
+x = 100
+y <- (honda_model$coefficients[1] + honda_model$coefficients[2] * x)
+
+honda %>% ggplot(aes(kilometer)) + geom_point(aes(x=kilometer, y=price)) + geom_abline(intercept=honda_model$coefficients[1], slope=honda_model$coefficients[2])
+
+```
+
 Fit a linear regression on the training set (with more than one independent variable).
 ```{r}
-model_1 <- lm(price ~ yearOfRegistration + brand + notRepairedDamage + powerPS, data = train)
+model_1 <- lm(price ~ yearOfRegistration + brand + notRepairedDamage * powerPS, data = train)
 ```
 
 Evaluate the model. How do the residuals looks? Are all variables significant? Is the model "good"? Can we do something to make it better? (look at Anova)
